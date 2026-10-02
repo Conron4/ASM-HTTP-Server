@@ -28,16 +28,37 @@
     movq $41, %rax # Syscall for socket
     movq $2, %rdi # Domain = PF_INET IPV4 see /usr/include/bits/socket.h
     movq $1, %rsi # Type = SOCK_STREAM see /usr/include/bits/socket_type.h
-    movq $6, %rdx # Protocol = tcp see /etc/protocols could be 0 imliped but chooose 6
+    movq $0, %rdx # Protocol = IP see /etc/protocols could also be 6
+    syscall
+
+    testq %rax, %rax
+    js _badexit
+    movq %rax, socket_fd(%rip)
+
+    movq $49, %rax # Syscall for bind
+    movq socket_fd(%rip), %rdi # Socket file descripter
+    movq $sockaddr_in, %rsi # sockaddr_in struct
+    movq $16, %rdx # Length 16 bytes
     syscall
 
     testq %rax, %rax
     js _badexit
 
-    movq %rax, socket_fd(%rip)
-    movq $49, %rax
+    movq $1, %rax
+    movq $1, %rdi
+    movq $bind_msg, %rsi
+    movq $bind_msg.len, %rdx
+    syscall
+
+    testq %rax, %rax
+    js _badexit
+
+    movq $50, %rax
     movq socket_fd(%rip), %rdi
-    movq
+    movq $5, %rsi
+    syscall
+    testq %rax, %rax
+    js _badexit
 
     jmp _exit
 
@@ -63,4 +84,12 @@
     .fill 64,1,0
 
   newline:
-    .byte 10  
+    .byte 10
+  sockaddr_in:
+    .word 2              # sin_family = AF_INET
+    .word 0x901F         # sin_port = htons(8080)
+    .long 0x0100007F     # sin_addr = 127.0.0.1
+    .zero 8              # sin_zero padding
+  bind_msg:
+    .asciz "Successfull binding on 127.0.0.1:8080\n"
+    bind_msg.len = . - bind_msg  
