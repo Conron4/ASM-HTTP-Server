@@ -15,9 +15,10 @@
   .lcomm server_fd, 8
   .lcomm client_fd, 8
   .lcomm client_addr, 16
-  .lcomm client_addr_len, 4
+  .lcomm client_addr.len, 4
   .lcomm readbuffer, 512
   .lcomm writebuffer, 512
+  .lcomm writebuffer.len, 8
 
 .text
   _start:
@@ -67,34 +68,69 @@
     testq %rax, %rax
     js _badexit
 
-    movq $43, %rax
-    movq server_fd(%rip), %rdi
-    movq $client_addr, %rsi
-    movl $16, client_addr_len(%rip)
-    movq $client_addr_len, %rdx
+    movq $43, %rax # Syscall for accept
+    movq server_fd(%rip), %rdi # As above
+    movq $client_addr, %rsi # Pointer to client_addr
+    movl $16, client_addr.len(%rip) # Set length to 16
+    movq $client_addr.len, %rdx # Pointer to client_addr.len
     syscall
 
     testq %rax, %rax
     js _badexit
 
-    movq %rax, client_fd(%rip)
+    movq %rax, client_fd(%rip) # Client Connect Successfully
     movq $1, %rax
     movq $1, %rdi
     movq $client_msg, %rsi
     movq $client_msg.len, %rdx
     syscall
+
+    testq %rax, %rax
+    js _badexit
+
+    movq $0, %rax
+    movq client_fd(%rip), %rdi
+    movq $readbuffer, %rsi
+    movq $512, %rdx
+    syscall
+
+    test %rax, %rax
+    js _badexit
     
+    movq $0, %rax
+    movq html_fd(%rip), %rdi
+    movq $writebuffer, %rsi
+    movq $512, %rdx
+    syscall
+
+    test %rax, %rax
+    js _badexit
+    movq %rax, writebuffer.len(%rip)
+
+    movq $1, %rax
+    movq client_fd(%rip), %rdi
+    movq $response_header, %rsi
+    movq $response_header.len, %rdx
+    syscall
+
+    test %rax, %rax
+    js _badexit
+    
+    movq $1, %rax
+    movq client_fd(%rip), %rdi
+    movq $writebuffer, %rsi
+    movq writebuffer.len(%rip), %rdx
+    syscall
+    test %rax, %rax
+    js _badexit
+
     jmp _exit
 
   _exit:
-    movq $3, %rax
-    movq client_fd(%rip), %rdi
-    syscall
-
-    movq $3, %rax
-    movq server_fd(%rip), %rdi
-    syscall
-
+    call _clientclose
+    call _serverclose
+    call _htmlclose
+    
     movq $60, %rax
     xorq %rdi, %rdi
     syscall
@@ -103,11 +139,32 @@
     movq $60, %rax
     movq $1, %rdi
     syscall
+  
+  _clientclose:
+    movq $3, %rax
+    movq client_fd(%rip), %rdi
+    syscall
+    ret
+  
+  _serverclose:
+    movq $3, %rax
+    movq server_fd(%rip), %rdi
+    syscall
+    ret
+  
+  _htmlclose:
+    movq $3, %rax
+    movq html_fd(%rip), %rdi
+    syscall
+    ret
 
 .data
-  ok:
-    .asciz "HTTP/1.1 200 OK"
-    ok.len = . - ok
+  response_header:
+    .ascii "HTTP/1.1 200 OK\r\n"
+    .ascii "Content-Type: text/html\r\n"
+    .ascii "\r\n"
+
+    response_header.len = . - response_header
   
   html_file:
     .asciz "test.html"
