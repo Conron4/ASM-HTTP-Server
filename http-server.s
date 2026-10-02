@@ -16,21 +16,21 @@
   .lcomm client_fd, 8
   .lcomm client_addr, 16
   .lcomm client_addr.len, 4
-  .lcomm readbuffer, 512
+  .lcomm readbuffer, 512 
   .lcomm writebuffer, 512
-  .lcomm writebuffer.len, 8
+  .lcomm writebuffer.len, 8 
 
 .text
   _start:
-    movq $2, %rax
-    movq $html_file, %rdi
-    xorq %rsi, %rsi
-    syscall
+    movq $2, %rax # Open syscall
+    movq $html_file, %rdi # File to open
+    xorq %rsi, %rsi # Set rsi to 0
+    syscall # Get linux kernel to do shit
 
-    testq %rax, %rax
-    js _badexit
+    testq %rax, %rax # Check if rax(error code) is a negative intger so the operation failed
+    js _badexit # If true goto _badexit and exit with code 1
     
-    movq %rax, html_fd(%rip)
+    movq %rax, html_fd(%rip) # Move the html fd to the html fd variable
 
     movq $41, %rax # Syscall for socket
     movq $2, %rdi # Domain = PF_INET IPV4 see /usr/include/bits/socket.h
@@ -38,9 +38,10 @@
     movq $0, %rdx # Protocol = IP see /etc/protocols could also be 6
     syscall
 
-    testq %rax, %rax
+    testq %rax, %rax # See above
     js _badexit
-    movq %rax, server_fd(%rip)
+
+    movq %rax, server_fd(%rip) # Move the server fd to the server fs variable
 
     movq $49, %rax # Syscall for bind
     movq server_fd(%rip), %rdi # Socket file descripter
@@ -51,10 +52,10 @@
     testq %rax, %rax
     js _badexit
 
-    movq $1, %rax
-    movq $1, %rdi
-    movq $bind_msg, %rsi
-    movq $bind_msg.len, %rdx
+    movq $1, %rax # Syscall for write
+    movq $1, %rdi # fd for stdout
+    movq $bind_msg, %rsi # memory address of bind_msg
+    movq $bind_msg.len, %rdx # memory address of bind_msg.len
     syscall
 
     testq %rax, %rax
@@ -79,48 +80,51 @@
     js _badexit
 
     movq %rax, client_fd(%rip) # Client Connect Successfully
-    movq $1, %rax
-    movq $1, %rdi
-    movq $client_msg, %rsi
-    movq $client_msg.len, %rdx
+
+    movq $1, %rax # See above
+    movq $1, %rdi # See above
+    movq $client_msg, %rsi # Memory address of client_msg
+    movq $client_msg.len, %rdx # Memory address of client_msg.len
     syscall
 
     testq %rax, %rax
     js _badexit
 
-    movq $0, %rax
-    movq client_fd(%rip), %rdi
-    movq $readbuffer, %rsi
-    movq $512, %rdx
+    movq $0, %rax # Read syscall
+    movq client_fd(%rip), %rdi # fd of client
+    movq $readbuffer, %rsi # Memory address of readbuffer
+    movq $512, %rdx # Read first 512 bytes
+    syscall
+
+    test %rax, %rax 
+    js _badexit
+    
+    movq $0, %rax # See above
+    movq html_fd(%rip), %rdi # fd of html
+    movq $writebuffer, %rsi # Memory address of writebuffer
+    movq $512, %rdx # Read first 512 bytes
+    syscall
+
+    test %rax, %rax
+    js _badexit
+
+    movq %rax, writebuffer.len(%rip) # RAX contains length of read bytes
+
+    movq $1, %rax 
+    movq client_fd(%rip), %rdi # Client fd
+    movq $response_header, %rsi # Response header address
+    movq $response_header.len, %rdx # Response header length address
     syscall
 
     test %rax, %rax
     js _badexit
     
-    movq $0, %rax
-    movq html_fd(%rip), %rdi
-    movq $writebuffer, %rsi
-    movq $512, %rdx
+    movq $1, %rax 
+    movq client_fd(%rip), %rdi # See above
+    movq $writebuffer, %rsi # Memory address of write buffer
+    movq writebuffer.len(%rip), %rdx # Memory address of write buffer length
     syscall
 
-    test %rax, %rax
-    js _badexit
-    movq %rax, writebuffer.len(%rip)
-
-    movq $1, %rax
-    movq client_fd(%rip), %rdi
-    movq $response_header, %rsi
-    movq $response_header.len, %rdx
-    syscall
-
-    test %rax, %rax
-    js _badexit
-    
-    movq $1, %rax
-    movq client_fd(%rip), %rdi
-    movq $writebuffer, %rsi
-    movq writebuffer.len(%rip), %rdx
-    syscall
     test %rax, %rax
     js _badexit
 
@@ -131,30 +135,30 @@
     call _serverclose
     call _htmlclose
     
-    movq $60, %rax
-    xorq %rdi, %rdi
+    movq $60, %rax # Syscall for exit
+    xorq %rdi, %rdi # Set exit code to 0
     syscall
 
   _badexit:
-    movq $60, %rax
-    movq $1, %rdi
+    movq $60, %rax # See above
+    movq $1, %rdi # Set exit code to 1
     syscall
   
   _clientclose:
-    movq $3, %rax
-    movq client_fd(%rip), %rdi
+    movq $3, %rax # Syscall for close
+    movq client_fd(%rip), %rdi # Client_fd
     syscall
     ret
   
   _serverclose:
-    movq $3, %rax
-    movq server_fd(%rip), %rdi
+    movq $3, %rax # See above
+    movq server_fd(%rip), %rdi # Server_fd
     syscall
     ret
   
   _htmlclose:
     movq $3, %rax
-    movq html_fd(%rip), %rdi
+    movq html_fd(%rip), %rdi # HTML_fd
     syscall
     ret
 
@@ -164,7 +168,7 @@
     .ascii "Content-Type: text/html\r\n"
     .ascii "\r\n"
 
-    response_header.len = . - response_header
+    response_header.len = . - response_header # Magic incanation to calc length
   
   html_file:
     .asciz "test.html"
@@ -180,8 +184,8 @@
 
   bind_msg:
     .asciz "Successfull binding on 127.0.0.1:8080\n"
-    bind_msg.len = . - bind_msg
+    bind_msg.len = . - bind_msg # See above
 
   client_msg:
     .asciz "Client connected successfully\n"
-    client_msg.len = . - client_msg  
+    client_msg.len = . - client_msg  # See above
