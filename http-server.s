@@ -27,12 +27,12 @@
     movq $2, %rdi # Domain = PF_INET IPV4 see /usr/include/bits/socket.h
     movq $1, %rsi # Type = SOCK_STREAM see /usr/include/bits/socket_type.h
     movq $0, %rdx # Protocol = IP see /etc/protocols could also be 6
-    syscall
+    syscall # Get linux kernel to do shit
 
-    testq %rax, %rax # See above
-    js _badexit
+    testq %rax, %rax # Check if rax(error code) is a negative intger so the operation failed
+    js _badexit # If true goto _badexit and exit with code 1
 
-    movq %rax, server_fd(%rip) # Move the server fd to the server fs variable
+    movq %rax, server_fd(%rip) # Move the server fd to the server fd variable
 
     movq $49, %rax # Syscall for bind
     movq server_fd(%rip), %rdi # Socket file descripter
@@ -40,8 +40,8 @@
     movq $16, %rdx # Length 16 bytes
     syscall
 
-    testq %rax, %rax
-    js _badexit
+    testq %rax, %rax # See Above
+    js _badexit # See above
 
     movq $1, %rax # Syscall for write
     movq $1, %rdi # fd for stdout
@@ -64,10 +64,10 @@
     movq $2, %rax # Open syscall
     movq $html_file, %rdi # File to open
     xorq %rsi, %rsi # Set rsi to 0
-    syscall # Get linux kernel to do shit
+    syscall 
 
-    testq %rax, %rax # Check if rax(error code) is a negative intger so the operation failed
-    js _badexit # If true goto _badexit and exit with code 1
+    testq %rax, %rax 
+    js _badexit 
     
     movq %rax, html_fd(%rip) # Move the html fd to the html fd variable
 
