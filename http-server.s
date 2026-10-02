@@ -19,19 +19,10 @@
   .lcomm readbuffer, 512 
   .lcomm writebuffer, 512
   .lcomm writebuffer.len, 8 
+  
 
 .text
   _start:
-    movq $2, %rax # Open syscall
-    movq $html_file, %rdi # File to open
-    xorq %rsi, %rsi # Set rsi to 0
-    syscall # Get linux kernel to do shit
-
-    testq %rax, %rax # Check if rax(error code) is a negative intger so the operation failed
-    js _badexit # If true goto _badexit and exit with code 1
-    
-    movq %rax, html_fd(%rip) # Move the html fd to the html fd variable
-
     movq $41, %rax # Syscall for socket
     movq $2, %rdi # Domain = PF_INET IPV4 see /usr/include/bits/socket.h
     movq $1, %rsi # Type = SOCK_STREAM see /usr/include/bits/socket_type.h
@@ -68,6 +59,17 @@
 
     testq %rax, %rax
     js _badexit
+
+  _acceptloop:
+    movq $2, %rax # Open syscall
+    movq $html_file, %rdi # File to open
+    xorq %rsi, %rsi # Set rsi to 0
+    syscall # Get linux kernel to do shit
+
+    testq %rax, %rax # Check if rax(error code) is a negative intger so the operation failed
+    js _badexit # If true goto _badexit and exit with code 1
+    
+    movq %rax, html_fd(%rip) # Move the html fd to the html fd variable
 
     movq $43, %rax # Syscall for accept
     movq server_fd(%rip), %rdi # As above
@@ -128,18 +130,14 @@
     test %rax, %rax
     js _badexit
 
-    jmp _exit
-
-  _exit:
     call _clientclose
-    call _serverclose
     call _htmlclose
-    
-    movq $60, %rax # Syscall for exit
-    xorq %rdi, %rdi # Set exit code to 0
-    syscall
+    jmp _acceptloop
 
   _badexit:
+    call _serverclose
+    call _clientclose
+    call _htmlclose
     movq $60, %rax # See above
     movq $1, %rdi # Set exit code to 1
     syscall
