@@ -12,7 +12,13 @@
 .global _start
 .bss
   .lcomm html_fd, 8
-  .lcomm socket_fd, 8
+  .lcomm server_fd, 8
+  .lcomm client_fd, 8
+  .lcomm client_addr, 16
+  .lcomm client_addr_len, 4
+  .lcomm readbuffer, 512
+  .lcomm writebuffer, 512
+
 .text
   _start:
     movq $2, %rax
@@ -33,11 +39,11 @@
 
     testq %rax, %rax
     js _badexit
-    movq %rax, socket_fd(%rip)
+    movq %rax, server_fd(%rip)
 
     movq $49, %rax # Syscall for bind
-    movq socket_fd(%rip), %rdi # Socket file descripter
-    movq $sockaddr_in, %rsi # sockaddr_in struct
+    movq server_fd(%rip), %rdi # Socket file descripter
+    movq $server_addr, %rsi # sockaddr_in struct
     movq $16, %rdx # Length 16 bytes
     syscall
 
@@ -53,16 +59,42 @@
     testq %rax, %rax
     js _badexit
 
-    movq $50, %rax
-    movq socket_fd(%rip), %rdi
-    movq $5, %rsi
+    movq $50, %rax # Syscall for listen
+    movq server_fd(%rip), %rdi # As above
+    movq $5, %rsi # Backlog of 5
     syscall
+
     testq %rax, %rax
     js _badexit
 
+    movq $43, %rax
+    movq server_fd(%rip), %rdi
+    movq $client_addr, %rsi
+    movl $16, client_addr_len(%rip)
+    movq $client_addr_len, %rdx
+    syscall
+
+    testq %rax, %rax
+    js _badexit
+
+    movq %rax, client_fd(%rip)
+    movq $1, %rax
+    movq $1, %rdi
+    movq $client_msg, %rsi
+    movq $client_msg.len, %rdx
+    syscall
+    
     jmp _exit
 
   _exit:
+    movq $3, %rax
+    movq client_fd(%rip), %rdi
+    syscall
+
+    movq $3, %rax
+    movq server_fd(%rip), %rdi
+    syscall
+
     movq $60, %rax
     xorq %rdi, %rdi
     syscall
@@ -80,16 +112,19 @@
   html_file:
     .asciz "test.html"
 
-  buffer:
-    .fill 64,1,0
-
   newline:
     .byte 10
-  sockaddr_in:
+
+  server_addr:
     .word 2              # sin_family = AF_INET
     .word 0x901F         # sin_port = htons(8080)
     .long 0x0100007F     # sin_addr = 127.0.0.1
     .zero 8              # sin_zero padding
+
   bind_msg:
     .asciz "Successfull binding on 127.0.0.1:8080\n"
-    bind_msg.len = . - bind_msg  
+    bind_msg.len = . - bind_msg
+
+  client_msg:
+    .asciz "Client connected successfully\n"
+    client_msg.len = . - client_msg  
